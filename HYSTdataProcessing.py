@@ -14,6 +14,7 @@ class HYSTdata:
         self.force = list(np.loadtxt('%s' % filename, delimiter=delimiter, usecols=(forcecol,), skiprows=skiprows, dtype=float))
         self.true_cycleindexlist = [0, ]
         self.true_backbone = []
+        self.true_paresult = []
 
     @staticmethod
     def energy(disp, force):
@@ -54,14 +55,33 @@ class HYSTdata:
                     break
         return pointindex
 
+    @staticmethod
+    def interpolation(point1, list1, list2):
+        """
+        :param point1:
+        :param list1:
+        :param list2:
+        :return: point2
+        """
+        point2 = 'NA'
+        for i in range(len(list1) - 1):
+            if list1[i] < point1 <= list1[i+1]:
+                k = (list2[i+1] - list2[i]) / (list1[i+1] - list1[i])
+                point2 = list2[i] + k * (point1 - list1[i])
+                break
+        return point2
+
     @property
     def cycleindexlist(self):
         """
         :return: index list for the first point of each cycle
         """
         for i in range(len(self.disp)-1):
-            if self.disp[i] <= 0 <= self.disp[i + 1] and i - self.true_cycleindexlist[-1] > 3:
-                self.true_cycleindexlist.append(i)
+            if self.disp[i] <= 0 < self.disp[i + 1] and i - self.true_cycleindexlist[-1] > 3:
+                self.true_cycleindexlist.append(i+1)
+        flag = self.true_cycleindexlist[-1] - len(self.disp) + 1
+        if -10 <= flag <= 10:
+            self.true_cycleindexlist.append(len(self.disp)-1)
         return self.true_cycleindexlist
 
     @property
@@ -74,7 +94,7 @@ class HYSTdata:
         backbonedisp_list_disordered = [0, ]
         maxdisp_hist = 0
         mindisp_hist = 0
-        for i, j in enumerate(self.cycleindexlist):
+        for i in range(len(self.cycleindexlist)-1):
             begin = self.cycleindexlist[i]
             end = self.cycleindexlist[i + 1]
             cycleforce_list = self.force[begin:end]
@@ -86,7 +106,7 @@ class HYSTdata:
                 maxdisp_hist = maxdisp
                 maxforce = max(cycleforce_list)
                 maxforce_index = cycleforce_list.index(maxforce)
-                maxforce_disp = cycledisp_list.index(maxforce_index)
+                maxforce_disp = cycledisp_list[maxforce_index]
                 backboneforce_list_disordered.append(maxforce)
                 backbonedisp_list_disordered.append(maxforce_disp)
             # add point corresponding to min force in this cycle
@@ -94,7 +114,7 @@ class HYSTdata:
                 mindisp_hist = mindisp
                 minforce = min(cycleforce_list)
                 minforce_index = cycleforce_list.index(minforce)
-                minforce_disp = cycledisp_list.index(minforce_index)
+                minforce_disp = cycledisp_list[minforce_index]
                 backboneforce_list_disordered.append(minforce)
                 backbonedisp_list_disordered.append(minforce_disp)
             if i == len(self.cycleindexlist) - 1:
@@ -113,66 +133,78 @@ class HYSTdata:
         self.true_backbone = [backbonedisp_list, backboneforce_list]
         return self.true_backbone
 
-    # @property
-    # def Ke(self):
-    #     # Function: return intial stiffness of the curve
-    #     force_p4 = 0.4 * self.maxforce
-    #     Index_U4 = self.SearchPoint(force_p4, self.force, 0, len(self.force), 1)
-    #     force_U4 = self.force[Index_U4]
-    #     disp_U4 = self.disp[Index_U4]
-    #     self.true_Ke = force_U4 / disp_U4
-    #     return self.true_Ke
-    #
-    # @property
-    # def Index_US(self):
-    #     # Function: return index of the ultimate state
-    #     Index_maxforce = self.SearchPoint(self.maxforce, self.force, 0, len(self.force), 1)
-    #     force_maxforce = self.force[Index_maxforce]
-    #     disp_maxforce = self.disp[Index_maxforce]
-    #     force_p8 = 0.8 * self.maxforce
-    #     self.true_Index_US = self.SearchPoint(force_p8, self.force, Index_maxforce, len(self.force), -1)
-    #     if self.true_Index_US == 'NA':
-    #         print('Can not find the point corresponding to ultimate state')
-    #     return self.true_Index_US
-    #
-    # @property
-    # def UltimatePoint(self):
-    #     # Function: return [disp,force] of ultimate state
-    #     if self.Index_US == 'NA':
-    #         self.true_UltimatePoint = ['NA', 'NA']
-    #     else:
-    #         self.true_UltimatePoint = [self.disp[self.Index_US], self.force[self.Index_US]]
-    #     return self.true_UltimatePoint
-    #
-    # @property
-    # def UltimateEnergy(self):
-    #     # Function: return energy dissipated in [0,ultimate state]
-    #     if self.Index_US == 'NA':
-    #         self.true_UltimateEnergy = 'NA'
-    #     else:
-    #         self.true_UltimateEnergy = self.CycleEnergy(self.disp[0:self.Index_US], self.force[0:self.Index_US])
-    #     return self.true_UltimateEnergy
-    #
-    # @property
-    # def YieldPoint(self):
-    #     # Function: return [disp,force] of yield point
-    #     if self.Index_US == 'NA':
-    #         self.true_YieldPoint = ['NA', 'NA']
-    #     else:
-    #         flag = self.UltimatePoint[0] ** 2 - 2 * self.UltimateEnergy / self.Ke
-    #         if flag < 0:
-    #             self.true_YieldPoint = ['NA', 'NA']
-    #         else:
-    #             YieldForce = (self.UltimatePoint[0] - flag ** 0.5) * self.Ke
-    #             YieldDisp = YieldForce / self.Ke
-    #             self.true_YieldPoint = [YieldDisp, YieldForce]
-    #     return self.true_YieldPoint
-    #
-    # @property
-    # def Ductility(self):
-    #     # Function: return ductility ratio
-    #     if self.YieldPoint == ['NA', 'NA']:
-    #         self.true_Ductility = 'NA'
-    #     else:
-    #         self.true_Ductility = self.UltimatePoint[0] / self.YieldPoint[0]
-    #     return self.true_Ductility
+    @property
+    def paresult(self):
+        """
+        :return:result for the parametric analysis in 2020
+        """
+        envelop_disp = [-36, -25.0, -18.0, -15.8, -12.0, -8.0, -4.0, -2.0, 0, 2.0, 4.0, 8.0, 12.0, 16.0, 18.0, 25.0, 36]
+        envelop_force = [-1.171, -1.673, -2.105, -2.155, -2.061, -1.822, -1.465, -1.097, 0, 1.097, 1.462, 1.82, 2.06, 2.156, 2.115, 1.636, 1.186]
+        fmaxhist_list = ["fmaxhist",]
+        fun_p_list = ["fun_p",]
+        fev_p_list = ["fev_p",]
+        dun_p_list = ["dun_p",]
+        dmaxhist_list = ["dmaxhist",]
+        fi_p_list = ["fi_p",]
+        fminhist_list = ["fminhist",]
+        fun_n_list = ["fun_n",]
+        fev_n_list = ["fev_n",]
+        dun_n_list = ["dun_n",]
+        dminhist_list = ["dminhist",]
+        fi_n_list = ["fi_n",]
+        fmaxhist = 0
+        fminhist = 0
+        dmaxhist = 0
+        dminhist = 0
+        fi_p = 0
+        fi_n = 0
+        for i in range(len(self.cycleindexlist)-1):
+            begin = self.cycleindexlist[i]
+            end = self.cycleindexlist[i + 1]
+            cycleforce_list = self.force[begin:end]
+            cycledisp_list = self.disp[begin:end]
+            fmax = max(cycleforce_list)
+            fmin = min(cycleforce_list)
+            dun_p = max(cycledisp_list)
+            dun_n = min(cycledisp_list)
+            fun_p = cycleforce_list[(cycledisp_list.index(dun_p))]
+            fun_n = cycleforce_list[(cycledisp_list.index(dun_n))]
+            fev_p = self.interpolation(dun_p, envelop_disp, envelop_force)
+            fev_n = self.interpolation(dun_n, envelop_disp, envelop_force)
+            if fmaxhist < fmax:
+                fmaxhist = fmax
+            if fminhist > fmin:
+                fminhist = fmin
+            if dmaxhist < dun_p:
+                dmaxhist = dun_p
+            if dminhist > dun_n:
+                dminhist = dun_n
+            for k in range(len(cycledisp_list)-1):
+                if cycledisp_list[k] > 0 >= cycledisp_list[k+1]:
+                    fi_p = cycleforce_list[k+1]
+                if cycledisp_list[k] < 0 <= cycledisp_list[k+1]:
+                    fi_n = cycleforce_list[k+1]
+            fmaxhist_list.append(fmaxhist)
+            fun_p_list.append(fun_p)
+            fev_p_list.append(fev_p)
+            dun_p_list.append(dun_p)
+            dmaxhist_list.append(dmaxhist)
+            fi_p_list.append(fi_p)
+            fminhist_list.append(fminhist)
+            fun_n_list.append(fun_n)
+            fev_n_list.append(fev_n)
+            dun_n_list.append(dun_n)
+            dminhist_list.append(dminhist)
+            fi_n_list.append(fi_n)
+        self.true_paresult = [fmaxhist_list, fun_p_list, fev_p_list, dun_p_list, dmaxhist_list, fi_p_list, fminhist_list, fun_n_list, fev_n_list, dun_n_list, dminhist_list, fi_n_list]
+        return self.true_paresult
+
+if __name__ == '__main__' :
+    data1 = HYSTdata('data/HYSTresult-4a.txt', 0, 1, ',', 1)
+    # print(data1.backbone)
+
+    for i in range(len(data1.paresult[0])):
+        for j in range(len(data1.paresult)):
+            print(data1.paresult[j][i],end = ' ')
+        print('')
+
