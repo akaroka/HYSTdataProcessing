@@ -10,8 +10,8 @@ class HYSTdata:
         """
 
         self.filename = filename
-        self.disp = list(np.loadtxt('%s' % filename, delimiter=delimiter, usecols=(dispcol,), skiprows=skiprows, dtype=float))
-        self.force = list(np.loadtxt('%s' % filename, delimiter=delimiter, usecols=(forcecol,), skiprows=skiprows, dtype=float))
+        self.disp = list(np.loadtxt(filename, delimiter=delimiter, usecols=(dispcol,), skiprows=skiprows, dtype=float))
+        self.force = list(np.loadtxt(filename, delimiter=delimiter, usecols=(forcecol,), skiprows=skiprows, dtype=float))
         self.true_cycleindexlist = [0, ]
         self.true_backbone = []
         self.true_paresult = []
@@ -42,17 +42,18 @@ class HYSTdata:
         :param slope: Slope>0: search in the increasing part; slope<0: search in the decreasing part
         :return: first index of searchpoint in searchlist[begin:end]
         """
-        pointindex = 'NA'
         if slope > 0:
             for i in range(begin, end):
                 if searchlist[i - 1] < searchpoint <= searchlist[i]:
                     pointindex = i
                     break
-        if slope < 0:
+        elif slope < 0:
             for i in range(begin, end):
                 if searchlist[i - 1] > searchpoint >= searchlist[i]:
                     pointindex = i
                     break
+        else:
+            pointindex = 'NA'
         return pointindex
 
     @staticmethod
@@ -80,7 +81,7 @@ class HYSTdata:
             if self.disp[i] <= 0 < self.disp[i + 1] and i - self.true_cycleindexlist[-1] > 3:
                 self.true_cycleindexlist.append(i+1)
         flag = self.true_cycleindexlist[-1] - len(self.disp) + 1
-        if -10 <= flag <= 10:
+        if flag in (-10, 10):
             self.true_cycleindexlist.append(len(self.disp)-1)
         return self.true_cycleindexlist
 
@@ -171,14 +172,10 @@ class HYSTdata:
             fun_n = cycleforce_list[(cycledisp_list.index(dun_n))]
             fev_p = self.interpolation(dun_p, envelop_disp, envelop_force)
             fev_n = self.interpolation(dun_n, envelop_disp, envelop_force)
-            if fmaxhist < fmax:
-                fmaxhist = fmax
-            if fminhist > fmin:
-                fminhist = fmin
-            if dmaxhist < dun_p:
-                dmaxhist = dun_p
-            if dminhist > dun_n:
-                dminhist = dun_n
+            fmaxhist = max(fmaxhist, fmax)
+            fminhist = min(fminhist, fmin)
+            dmaxhist = max(dmaxhist, dun_p)
+            dminhist = min(dminhist, dun_n)
             for k in range(len(cycledisp_list)-1):
                 if cycledisp_list[k] > 0 >= cycledisp_list[k+1]:
                     fi_p = cycleforce_list[k+1]
